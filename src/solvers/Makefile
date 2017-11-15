@@ -87,6 +87,7 @@ SRC = $(CHAFF_SRC) $(BOOLEFORCE_SRC) $(MINISAT_SRC) $(MINISAT2_SRC) \
       cvc/cvc_conv.cpp cvc/cvc_dec.cpp \
       smt1/smt1_dec.cpp smt1/smt1_conv.cpp \
       smt2/smt2_dec.cpp smt2/smt2_conv.cpp smt2/smt2_parser.cpp smt2/smt2irep.cpp \
+      smt2/z3_conv.cpp \
       flattening/equality.cpp flattening/arrays.cpp \
       flattening/functions.cpp flattening/bv_minimize.cpp \
       flattening/boolbv_width.cpp flattening/boolbv.cpp \
@@ -146,4 +147,4 @@ endif
 solvers$(LIBEXT): $(OBJ) $(CHAFF_LIB) $(BOOLEFORCE_LIB) $(MINISAT_LIB) \
         $(MINISAT2_LIB) $(SMVSAT_LIB) $(SQUOLEM2_LIB) $(CUDD_LIB) \
 	$(PRECOSAT_LIB) $(PICOSAT_LIB) $(LINGELING_LIB) $(GLUCOSE_LIB)
-	$(LINKLIB)
+	$(LINKLIB) /Users/manasij7479/code/z3/build/libz3.a
