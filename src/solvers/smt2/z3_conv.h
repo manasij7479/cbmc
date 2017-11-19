@@ -41,7 +41,7 @@ public:
   resultt dec_solve() {
     // out << "CHECK-SAT" << std::endl;;
     auto result = solver.check();
-    out << "MODEL : " << solver.get_model() << std::endl;
+    // out << "MODEL : " << solver.get_model() << std::endl;
     switch(result) {
     case z3::unsat:   return D_UNSATISFIABLE;
     case z3::sat:     return D_SATISFIABLE;
@@ -56,11 +56,11 @@ public:
   }
   virtual void set_frozen(literalt a) { /* not needed */ }
   virtual void set_to(const exprt &expr, bool value) {
-    out << "set to : " <<from_expr(ns, " ", expr) << " : " << value << "\n";
+    // out << "set to : " <<from_expr(ns, " ", expr) << " : " << value << "\n";
     z3::expr result = convert_expr(expr);
     if (value) {
       solver.add(result);
-      out << "Z3 : " << result << std::endl;
+      out << "(assert " << result << " )\n`";
     } else {
       solver.add(!result);
     }

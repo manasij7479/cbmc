@@ -80,9 +80,7 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
 
       std::size_t width=boolbv_width(expr_type);
 
-      // out << "(_ bv" << value
-      //     << " " << width << ")";
-      return context.bv_val(id2string(ce.get_value()).c_str(), width);
+      return context.bv_val(from_expr(ns, " ", ce).c_str(), width);
     }
     else
     {
@@ -198,6 +196,55 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
     return convert_expr(expr.op0())
            + convert_expr(expr.op1());
   }
+  else if (expr.id()==ID_mult)
+  {
+    assert(expr.operands().size()==2);
+    assert(base_type_eq(expr.op0().type(), expr.op1().type(), ns));
+    return convert_expr(expr.op0())
+           * convert_expr(expr.op1());
+  }
+  else if (expr.id()==ID_minus)
+  {
+    assert(expr.operands().size()==2);
+    assert(base_type_eq(expr.op0().type(), expr.op1().type(), ns));
+    return convert_expr(expr.op0())
+           - convert_expr(expr.op1());
+  }
+  else if (expr.id()==ID_div)
+  {
+    assert(expr.operands().size()==2);
+    assert(base_type_eq(expr.op0().type(), expr.op1().type(), ns));
+    return convert_expr(expr.op0())
+           / convert_expr(expr.op1());
+  }
+  else if (expr.id()==ID_le)
+  {
+    assert(expr.operands().size()==2);
+    assert(base_type_eq(expr.op0().type(), expr.op1().type(), ns));
+    return convert_expr(expr.op0())
+           <= convert_expr(expr.op1());
+  }
+  else if (expr.id()==ID_lt)
+  {
+    assert(expr.operands().size()==2);
+    assert(base_type_eq(expr.op0().type(), expr.op1().type(), ns));
+    return convert_expr(expr.op0())
+           < convert_expr(expr.op1());
+  }
+  else if (expr.id()==ID_ge)
+  {
+    assert(expr.operands().size()==2);
+    assert(base_type_eq(expr.op0().type(), expr.op1().type(), ns));
+    return convert_expr(expr.op0())
+           >= convert_expr(expr.op1());
+  }
+  else if (expr.id()==ID_gt)
+  {
+    assert(expr.operands().size()==2);
+    assert(base_type_eq(expr.op0().type(), expr.op1().type(), ns));
+    return convert_expr(expr.op0())
+           > convert_expr(expr.op1());
+  }
   else
   { 
     UNEXPECTEDCASE("Not yet implemented: " + std::string(expr.id().c_str()) + "\n"+ from_expr(ns, " ", expr));
@@ -214,6 +261,8 @@ exprt z3_convt::get(const exprt &expr) const {
   {
     std::string str = Z3_get_numeral_string(context , e);
     auto value = string2integer(str.c_str());
+    // out << "FOO " << value << std::endl;
+    // out << "Z3-FOO " << e << std::endl;
     auto type = expr.type();
     if(type.id()==ID_signedbv ||
      type.id()==ID_unsignedbv ||
