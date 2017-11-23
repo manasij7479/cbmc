@@ -110,7 +110,7 @@ libzip-build:
 z3-download:
 	@if [ ! -d "../z3" ]; then \
 		echo "Downloading z3 4.5.0"; \
-		lwp-download https://github.com/Z3Prover/z3/archive/z3-4.5.0.tar.gz; \
+		wget http://github.com/Z3Prover/z3/archive/z3-4.5.0.tar.gz; \
 		tar xfz z3-4.5.0.tar.gz; \
 		mv z3-z3-4.5.0 ../z3; \
 		rm z3-4.5.0.tar.gz; \
@@ -124,7 +124,7 @@ z3-build:
 		cd ../z3; \
 		python scripts/mk_make.py --staticlib; \
 		cd build; \
-		make; \
+		make -j8; \
 	fi
 
 .PHONY: minisat2-download glucose-download zlib-download libzip-download libzip-build z3-download z3-build

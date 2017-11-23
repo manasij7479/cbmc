@@ -5,9 +5,9 @@ BUILD_ENV = AUTO
 #CXXFLAGS = -Wall -O0 -g -Werror -Wno-long-long -Wno-sign-compare -Wno-parentheses -Wno-strict-aliasing -pedantic
 #CXXFLAGS = -std=c++11
 
-CXXFLAGS = -Wall -O0 -g -fopenmp
+CXXFLAGS = -Wall -O0 -g
 
-LINK_EXTRA_FLAGS = -fopenmp
+#LINK_EXTRA_FLAGS = -fopenmp
 
 # If GLPK is available; this is used by goto-instrument and musketeer.
 #LIB_GLPK = -lglpk
