@@ -5,7 +5,9 @@ BUILD_ENV = AUTO
 #CXXFLAGS = -Wall -O0 -g -Werror -Wno-long-long -Wno-sign-compare -Wno-parentheses -Wno-strict-aliasing -pedantic
 #CXXFLAGS = -std=c++11
 
-CXXFLAGS = -Wall -O0 -g
+CXXFLAGS = -Wall -O0 -g -fopenmp
+
+LINK_EXTRA_FLAGS = -fopenmp
 
 # If GLPK is available; this is used by goto-instrument and musketeer.
 #LIB_GLPK = -lglpk
@@ -22,6 +24,11 @@ MINISAT2 = ../../minisat-2.2.1
 #SMVSAT =
 LIBZIPLIB = ../../libzip/lib/.libs/libzip.a ../../zlib/libz.a
 LIBZIPINC = ../../libzip/lib
+
+# SMT-solvers we have
+Z3 = ../../z3/
+Z3LIB = ../../z3/build/libz3.a
+Z3INC = ../../z3/src
 
 # Signing identity for MacOS Gatekeeper
 

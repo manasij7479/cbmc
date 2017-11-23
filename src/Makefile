@@ -107,4 +107,24 @@ libzip-build:
 	@echo "Building libzip"
 	@(cd ../libzip; BASE=`pwd`; ./configure --with-zlib=$(BASE)/zlib ; make)
 
-.PHONY: minisat2-download glucose-download zlib-download libzip-download libzip-build
+z3-download:
+	@if [ ! -d "../z3" ]; then \
+		echo "Downloading z3 4.5.0"; \
+		lwp-download https://github.com/Z3Prover/z3/archive/z3-4.5.0.tar.gz; \
+		tar xfz z3-4.5.0.tar.gz; \
+		mv z3-z3-4.5.0 ../z3; \
+		rm z3-4.5.0.tar.gz; \
+	fi
+
+z3-build:
+	@if [ -f "../z3/build/libz3.a" ]; then \
+		echo "Z3 already built"; \
+	else \
+		echo "Building z3"; \
+		cd ../z3; \
+		python scripts/mk_make.py --staticlib; \
+		cd build; \
+		make; \
+	fi
+
+.PHONY: minisat2-download glucose-download zlib-download libzip-download libzip-build z3-download z3-build

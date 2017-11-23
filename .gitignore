@@ -37,6 +37,7 @@ libzip/
 zlib/
 minisat*/
 glucose-syrup/
+z3/
 
 # flex/bison generated files
 src/ansi-c/ansi_c_lex.yy.cpp
