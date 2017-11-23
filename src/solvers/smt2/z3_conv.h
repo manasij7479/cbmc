@@ -41,6 +41,7 @@ public:
   resultt dec_solve() {
     // out << "CHECK-SAT" << std::endl;;
     auto result = solver.check();
+    // model = solver.get_model();
     // out << "MODEL : " << solver.get_model() << std::endl;
     switch(result) {
     case z3::unsat:   return D_UNSATISFIABLE;
@@ -87,6 +88,7 @@ public:
 protected:
   mutable z3::context context;
   z3::solver solver;
+  // z3::model model = solver.get_model();
 
   bool exists(const irep_idt &id) const {
     return map.find(id) != map.end();
@@ -100,6 +102,37 @@ protected:
   bvt assumptions;
   mutable std::ofstream out;
   const namespacet &ns;
+
+  z3::sort convert_type(const typet &type) const;
+
+  // specific expressions go here
+  // void convert_byte_update(const byte_update_exprt &expr);
+  // void convert_byte_extract(const byte_extract_exprt &expr);
+  // void convert_typecast(const typecast_exprt &expr);
+  // void convert_floatbv_typecast(const floatbv_typecast_exprt &expr);
+  // void convert_struct(const struct_exprt &expr);
+  // void convert_union(const union_exprt &expr);
+  // void convert_constant(const constant_exprt &expr);
+  // void convert_relation(const exprt &expr);
+  // void convert_is_dynamic_object(const exprt &expr);
+  // void convert_plus(const plus_exprt &expr);
+  // void convert_minus(const minus_exprt &expr);
+  // void convert_div(const div_exprt &expr);
+  // void convert_mult(const mult_exprt &expr);
+  // void convert_rounding_mode_FPA(const exprt &expr);
+  // void convert_floatbv_plus(const ieee_float_op_exprt &expr);
+  // void convert_floatbv_minus(const ieee_float_op_exprt &expr);
+  // void convert_floatbv_div(const ieee_float_op_exprt &expr);
+  // void convert_floatbv_mult(const ieee_float_op_exprt &expr);
+  // void convert_mod(const mod_exprt &expr);
+  // void convert_member(const member_exprt &expr);
+  // void convert_overflow(const exprt &expr);
+  // void convert_update(const exprt &expr);
+  z3::expr convert_with(const with_exprt &expr) const;
+  z3::expr convert_index(const index_exprt &expr) const;
+
+  exprt convert_z3_array(const z3::expr &expr, const array_typet &array_type) const;
+  exprt convert_z3_expr(const z3::expr &expr, const typet &type) const;
 };
 
 #endif // CPROVER_SOLVERS_SMT2_SMT2_CONV_H

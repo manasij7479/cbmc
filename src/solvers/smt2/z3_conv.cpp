@@ -2,7 +2,8 @@
 
 Module: Z3 C++ API Backend
 
-Author: Manasij Mukherjee, manasij7479@gmail.com
+Author(s): Manasij Mukherjee, manasij7479@gmail.com
+           Johanan Wahlang, johananwahlang@gmail.com
 
 \*******************************************************************/
 
@@ -30,6 +31,7 @@ Author: Manasij Mukherjee, manasij7479@gmail.com
 
 #include "z3_conv.h"
 
+#include <stdlib.h>
 #include <sstream>
 // using namespace z3;
 // Mark different kinds of error condition
@@ -47,6 +49,27 @@ Author: Manasij Mukherjee, manasij7479@gmail.com
 #define TODO(S) throw "TODO: " S
 
 // /*******************************************************************
+z3::sort z3_convt::convert_type(const typet &type) const {
+  if(type.id()==ID_signedbv ||
+     type.id()==ID_unsignedbv ||
+     type.id()==ID_fixedbv ||
+     type.id()==ID_floatbv ||
+     type.id()==ID_verilog_signedbv ||
+     type.id()==ID_verilog_unsignedbv ||
+     type.id()==ID_bv ||
+     type.id()==ID_pointer ||
+     type.id()==ID_c_bit_field ||
+     type.id()==ID_c_bool) {
+    size_t width = to_bitvector_type(type).get_width();
+    return context.bv_sort(width);
+  }
+  else if (type.id()==ID_array) {
+    const array_typet &array_type = to_array_type(type);
+    const typet &array_index_type = array_type.size().type();    
+    const typet &array_value_type = array_type.subtype();
+    return context.array_sort(convert_type(array_index_type), convert_type(array_value_type));
+  }
+}
 
 z3::expr z3_convt::convert_expr(const exprt &expr) const
 {
@@ -67,7 +90,6 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
       }
     }
     const typet &expr_type=ce.type();
-
     if(expr_type.id()==ID_unsignedbv ||
        expr_type.id()==ID_signedbv ||
        expr_type.id()==ID_bv ||
@@ -79,11 +101,12 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
     {
 
       std::size_t width=boolbv_width(expr_type);
-
-      return context.bv_val(from_expr(ns, " ", ce).c_str(), width);
+      //TODO: fix conversion error here
+      return context.bv_val(std::strtoll(ce.get_value().c_str(),NULL,2), width);
     }
     else
     {
+      out << expr_type.id() << std::endl;
       UNEXPECTEDCASE("NON-BOOL Constant : " + std::string(ce.type().id().c_str()) + " " + from_expr(ns, " ", expr));
 
     }
@@ -92,15 +115,16 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
   {
     irep_idt id=to_symbol_expr(expr).get_identifier();
     assert(id!=irep_idt());
+    // out << "Symbol id: " << id.c_str() << std::endl;
     if (!exists(id)) {
       z3::expr new_expr(context);
-      const auto& expr_type = expr.type();
+      const typet &expr_type=ns.follow(expr.type());
 
       if (expr_type.id() == ID_bool)
       {
         new_expr = context.bool_const(id.c_str());
       }
-      if(expr_type.id()==ID_unsignedbv ||
+      else if(expr_type.id()==ID_unsignedbv ||
         expr_type.id()==ID_signedbv ||
         expr_type.id()==ID_bv ||
         expr_type.id()==ID_c_enum ||
@@ -109,10 +133,12 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
         expr_type.id()==ID_incomplete_c_enum ||
         expr_type.id()==ID_c_bit_field)
       {
-        std::size_t width=boolbv_width(expr_type);
-        new_expr = context.bv_const(id.c_str(), width);
+        new_expr = context.constant(id.c_str(), convert_type(expr_type));
       }
-
+      else if(expr_type.id()==ID_array)
+      {
+        new_expr = context.constant(id.c_str(), convert_type(expr_type));
+      }
       store.push_back(new_expr);
       map[id] = store.size() - 1;
     }
@@ -245,47 +271,143 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
     return convert_expr(expr.op0())
            > convert_expr(expr.op1());
   }
+  else if (expr.id()==ID_forall)
+  {
+    //return z3::forall(convert_expr(expr.op0), convert_expr(expr.op1));
+  }
+  else if (expr.id()==ID_exists)
+  {
+    //  return z3::exists(convert_expr(expr.op0), convert_expr(expr.op1));
+  }
+  else if (expr.id()==ID_array)
+  {
+    // out << from_expr(expr) << std::endl;
+  }
+  else if (expr.id()==ID_array_of)
+  {
+    // out << from_expr(expr) << std::endl;
+  }
+  else if (expr.id()==ID_array_copy)
+  {
+  }
+  else if (expr.id()==ID_array_equal)
+  {
+  }
+  else if (expr.id()==ID_array_set)
+  {
+  }
+  else if (expr.id()==ID_with)
+  {
+    return convert_with(to_with_expr(expr));
+  }
+  else if (expr.id()==ID_index)
+  {
+    return convert_index(to_index_expr(expr));
+  }
   else
   { 
     UNEXPECTEDCASE("Not yet implemented: " + std::string(expr.id().c_str()) + "\n"+ from_expr(ns, " ", expr));
   }
 }
 
-exprt z3_convt::get(const exprt &expr) const {
-  z3::model m=solver.get_model();
-  z3::expr e = m.eval(convert_expr(expr));
+z3::expr z3_convt::convert_with(const with_exprt &expr) const {
+  // get rid of "with" that has more than three operands
 
-  // out << from_expr(ns, " ", expr) << '\t' <<  e << std::endl;
+  assert(expr.operands().size()>=3);
 
-  if (Z3_get_ast_kind(context, e) == Z3_NUMERAL_AST)
+  if(expr.operands().size()>3)
   {
-    std::string str = Z3_get_numeral_string(context , e);
-    auto value = string2integer(str.c_str());
-    // out << "FOO " << value << std::endl;
-    // out << "Z3-FOO " << e << std::endl;
-    auto type = expr.type();
-    if(type.id()==ID_signedbv ||
-     type.id()==ID_unsignedbv ||
-     type.id()==ID_bv ||
-     type.id()==ID_c_enum ||
-     type.id()==ID_c_bool)
-    {
-      return from_integer(value, type);
-    }
-    else
-    {
-      PARSERERROR("Unsupported number type" + from_expr(ns, " ", expr));
+    std::size_t s=expr.operands().size();
+
+    // strip of the trailing two operands
+    exprt tmp=expr;
+    tmp.operands().resize(s-2);
+
+    with_exprt new_with_expr;
+    assert(new_with_expr.operands().size()==3);
+    new_with_expr.type()=expr.type();
+    new_with_expr.old()=tmp;
+    new_with_expr.where()=expr.operands()[s-2];
+    new_with_expr.new_value()=expr.operands()[s-1];
+
+    // recursive call
+    return convert_with(new_with_expr);
+  }
+  const typet &expr_type=ns.follow(expr.type());
+
+  if(expr_type.id()==ID_array)
+  {
+    const array_typet &array_type=to_array_type(expr_type);
+    const z3::expr &array = convert_expr(expr.old());
+    const z3::expr &index = convert_expr(expr.where());
+    const z3::expr &value = convert_expr(expr.new_value());
+    return z3::store(array, index, value);
+  }
+}
+
+z3::expr z3_convt::convert_index(const index_exprt &expr) const {
+  assert(expr.operands().size()==2);
+
+  const typet &array_op_type=ns.follow(expr.array().type());
+
+  if(array_op_type.id()==ID_array)
+  {
+    // const array_typet &array_type=to_array_type(array_op_type);
+    const z3::expr &array = convert_expr(expr.array());
+    const z3::expr &index = convert_expr(expr.index());
+    return z3::select(array, index);
+  }
+  else
+    UNEXPECTEDCASE("index with unsupported array type: "+array_op_type.id_string());
+}
+
+exprt z3_convt::get(const exprt &expr) const {
+  z3::model m = solver.get_model();
+  const z3::expr & e = m.eval(convert_expr(expr));
+  return z3_convt::convert_z3_expr(e, expr.type());
+}
+
+exprt z3_convt::convert_z3_expr(const z3::expr &expr, const typet &type) const {
+  if (expr.is_app()) {
+    switch (expr.decl().decl_kind()) {
+      case Z3_OP_TRUE:
+        return from_integer(1, type);
+      case Z3_OP_FALSE:
+        return from_integer(0, type);
+      case Z3_OP_BNUM:
+        return from_integer(expr.get_numeral_int64(), type);
+      case Z3_OP_STORE:
+      case Z3_OP_CONST_ARRAY:
+      {
+        const array_typet &array_type = to_array_type(type);
+        return convert_z3_array(expr, array_type);
+      }
+      default:
+        out << "Conversion from z3 expression type " << expr.decl().decl_kind() << " not yet added" << std::endl;
+        return nil_exprt();
     }
   }
+  else {
+    out << "Conversion from z3 expression type " << expr.decl().decl_kind() << " not yet added" << std::endl;
+    return nil_exprt();
+  }
+}
 
-  std::ostringstream estr;
-  estr << e;
-
-  if (estr.str() == "true") {
-    return true_exprt();
-  } else if (estr.str() == "false") {
-    return false_exprt();
-  } else {
-    UNEXPECTEDCASE("Can not parse model : " + estr.str());
+exprt z3_convt::convert_z3_array(const z3::expr &expr, const array_typet &array_type) const {
+  switch (expr.decl().decl_kind()) {
+    case Z3_OP_CONST_ARRAY:
+    {
+      const exprt &what = from_integer(expr.arg(0).get_numeral_int(),array_type.subtype());
+      return array_of_exprt(what, array_type);
+    }
+    case Z3_OP_STORE:
+    {
+      const exprt &array = convert_z3_array(expr.arg(0), array_type);
+      const exprt &index = convert_z3_expr(expr.arg(1), array_type.size().type());
+      const exprt &value = convert_z3_expr(expr.arg(2), array_type.subtype());
+      return with_exprt(array, index, value);
+    }
+    default:
+      UNEXPECTEDCASE("Not an array\n");
   }
 }
