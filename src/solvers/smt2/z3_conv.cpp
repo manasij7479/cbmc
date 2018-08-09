@@ -73,6 +73,7 @@ z3::sort z3_convt::convert_type(const typet &type) const {
 
 z3::expr z3_convt::convert_expr(const exprt &expr) const
 {
+  std::cout << "Converting " << from_expr(expr) << std::endl;
   boolbv_widtht boolbv_width(ns);
   if (expr.id() == ID_constant)
   {
@@ -91,8 +92,6 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
     }
     const typet &expr_type=ce.type();
     if(expr_type.id()==ID_unsignedbv ||
-       expr_type.id()==ID_signedbv ||
-       expr_type.id()==ID_bv ||
        expr_type.id()==ID_c_enum ||
        expr_type.id()==ID_c_enum_tag ||
        expr_type.id()==ID_c_bool ||
@@ -101,7 +100,21 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
     {
 
       std::size_t width=boolbv_width(expr_type);
-      return context.bv_val(std::strtoll(ce.get_value().c_str(),NULL,2), width);
+      uint64_t value=binary2integer(id2string(ce.get_value()), false).to_ulong();
+      return context.bv_val(value, width);
+    }
+    else if (expr_type.id()==ID_signedbv ||
+             expr_type.id()==ID_bv)
+    {
+      std::size_t width=boolbv_width(expr_type);
+      int64_t value=binary2integer(id2string(ce.get_value()), false).to_long();
+      return context.bv_val(value, width);
+    }
+    else if (expr_type.id()==ID_integer)
+    {
+      // std::cout << ce.get_value().c_str() << std::endl;
+      // std::cout << id2string(ce.get_value()) << std::endl;
+      return context.int_val(ce.get_value().c_str());
     }
     else
     {
@@ -272,14 +285,23 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
   }
   else if (expr.id()==ID_typecast)
   {
+    return convert_typecast(to_typecast_expr(expr));
   }
   else if (expr.id()==ID_forall)
   {
+    // std::cout << convert_expr(expr.op0()) << std::endl;
+    // std::cout << convert_expr(expr.op1()) << std::endl;
+    // std::cout << z3::forall(convert_expr(expr.op0()), convert_expr(expr.op1())) << std::endl;
     return z3::forall(convert_expr(expr.op0()), convert_expr(expr.op1()));
   }
   else if (expr.id()==ID_exists)
   {
-    return z3::exists(convert_expr(expr.op0()), convert_expr(expr.op1()));
+    int i=0;
+    for (auto it=expr.operands().begin(); it!=expr.operands().end(); it++, i++)
+    {
+      std::cout << i << from_expr(*it) << std::endl;
+    }
+    // return z3::exists(convert_expr(expr.op0()), convert_expr(expr.op1()));
   }
   else if (expr.id()==ID_with)
   {
@@ -294,10 +316,33 @@ z3::expr z3_convt::convert_expr(const exprt &expr) const
     return convert_typecast(to_typecast_expr(expr));
 
   }
+  else if (expr.id() == ID_array)
+  {
+    return convert_array(to_array_expr(expr));
+  }
   else
   { 
     UNEXPECTEDCASE("Not yet implemented: " + std::string(expr.id().c_str()) + "\n"+ from_expr(ns, " ", expr));
   }
+}
+
+z3::expr z3_convt::convert_array(const array_exprt &expr) const
+{
+  // std::cout << expr.pretty() << std::endl;
+  // std::cout << expr.operands().size() << std::endl;
+  // std::cout << from_expr(expr.op0()) << std::endl;
+  typet expr_type = expr.type();
+  array_typet array_type = to_array_type(expr_type);
+  z3::expr z3_array = z3::const_array(convert_type(array_type.size().type()), 
+                                      context.bv_val(0, convert_type(array_type.subtype()).bv_size()));
+  std::cout << z3_array << std::endl;
+  int i=0;
+  for (auto it=expr.operands().begin(); it!=expr.operands().end(); it++, i++)
+  {
+    z3_array = z3::store(z3_array, i, convert_expr(*it));
+  }
+  // std::cout << z3_array << std::endl;
+  return z3_array;
 }
 
 z3::expr z3_convt::convert_with(const with_exprt &expr) const {
@@ -354,66 +399,139 @@ z3::expr z3_convt::convert_index(const index_exprt &expr) const {
 exprt z3_convt::get(const exprt &expr) const {
   z3::model m = solver.get_model();
   const z3::expr & e = m.eval(convert_expr(expr));
-  out << "foo " << from_expr(ns, "", expr) << std::endl;
-  out << "bar " << e << std::endl;
+  out << from_expr(ns, "", expr) << ": ";
+  out << e << std::endl;
   return z3_convt::convert_z3_expr(e, expr.type());
 }
 
-exprt z3_convt::convert_z3_expr(const z3::expr &expr, const typet &type) const {
-  if (expr.is_app()) {
-    switch (expr.decl().decl_kind()) {
-      case Z3_OP_TRUE:
-        return from_integer(1, type);
-      case Z3_OP_FALSE:
-        return from_integer(0, type);
-      case Z3_OP_BNUM:
-        return from_integer(mp_integer(expr.get_decimal_string(64).c_str(),10), type);
-      case Z3_OP_STORE:
-      case Z3_OP_CONST_ARRAY:
-      {
-        const array_typet &array_type = to_array_type(type);
-        return convert_z3_array(expr, array_type);
-      }
-      case Z3_OP_UNINTERPRETED:
-      {
-        out << "Z3_OP_UNINTERPRETED" << expr << std::endl;
-      }
-        break;
-      case Z3_OP_INTERNAL:
-      {
-        for (int i=0; expr.num_args(); ++i) {
-          out << expr.arg(i) << std::endl;
-        }
-        out << "Z3_OP_INTERNAL " << expr << std::endl;
-      }
-        break;
-      default:
-        UNEXPECTEDCASE("Conversion from z3 expression type " + std::to_string(expr.decl().decl_kind()) + " not yet added");
-        return nil_exprt();
-    }
+exprt z3_convt::convert_z3_expr(const z3::expr &expr, const typet &type) const
+{
+  // if (expr.is_app()) {
+  //   switch (expr.decl().decl_kind()) {
+  //     case Z3_OP_TRUE:
+        // return true_exprt();
+      // case Z3_OP_FALSE:
+        // return false_exprt();
+      // case Z3_OP_BNUM:
+        // return from_integer(mp_integer(expr.get_decimal_string(64).c_str(),10), type);
+      // case Z3_OP_STORE:
+      // case Z3_OP_CONST_ARRAY:
+      // {
+        // const array_typet &array_type = to_array_type(type);
+        // return convert_z3_array(expr, array_type);
+      // }
+      // case Z3_OP_UNINTERPRETED:
+      // {
+        // out << "Z3_OP_UNINTERPRETED" << expr << std::endl;
+      // }
+        // break;
+      // case Z3_OP_INTERNAL:
+      // {
+        // for (int i=0; expr.num_args(); ++i) {
+        //   out << expr.arg(i) << std::endl;
+        // }
+        // out << "Z3_OP_INTERNAL " << expr << std::endl;
+  //     }
+  //       break;
+  //     default:
+  //       UNEXPECTEDCASE("Conversion from z3 expression type " + std::to_string(expr.decl().decl_kind()) + " not yet added");
+  //       return nil_exprt();
+  //   }
+  // }
+  if (type.id()==ID_array)
+  {
+    return convert_z3_array(expr, to_array_type(type));
   }
-  else {
-    UNEXPECTEDCASE("Conversion from z3 expression " + std::to_string(expr) + " not yet added");
-    return nil_exprt();
+  switch(expr.kind())
+  {
+    case Z3_NUMERAL_AST:
+      std::cout << "Z3_NUMERAL_AST" << std::endl;
+      UNEXPECTEDCASE("bla");
+      break;
+    case Z3_APP_AST:
+      std::cout << "Z3_APP_AST" << std::endl;
+      switch(expr.decl().decl_kind())
+      {
+        case Z3_OP_TRUE:
+          return true_exprt();
+        case Z3_OP_FALSE:
+          return false_exprt();
+      }
+      UNEXPECTEDCASE("bla");
+      break;
+    case Z3_VAR_AST:
+      std::cout << "Z3_VAR_AST" << std::endl;
+      UNEXPECTEDCASE("bla");
+      break;
+    case Z3_QUANTIFIER_AST:
+      std::cout << "Z3_QUANTIFIER_AST" << std::endl;
+      std::cout << expr << std::endl;
+      if (expr.is_exists())
+      {
+
+      }
+      else if (expr.is_forall())
+      {
+        std::cout << Z3_get_quantifier_bound_name(context, expr, 0) << std::endl;
+      }
+      else if (expr.is_lambda())
+      {
+        std::cout << Z3_get_quantifier_num_bound(context, expr) << std::endl;
+        std::cout << Z3_get_quantifier_bound_name(context, expr, 0) << std::endl;
+      }
+      else
+      {
+        UNEXPECTEDCASE("Not a quantifier!");
+      }
+      std::cout << expr.body() << std::endl;
+      UNEXPECTEDCASE("bla");
+      break;
+    case Z3_SORT_AST:
+      std::cout << "Z3_SORT_AST" << std::endl;
+      UNEXPECTEDCASE("bla");
+      break;
+    case Z3_FUNC_DECL_AST:
+      std::cout << "Z3_FUNC_DECL_AST" << std::endl;
+      UNEXPECTEDCASE("bla");
+      break;
+    default:
+      std::cout << "Z3_UNKNOWN_AST" << std::endl;
+      UNEXPECTEDCASE("bla");
+      break;
   }
+  std::cout << expr << std::endl;
 }
 
-exprt z3_convt::convert_z3_array(const z3::expr &expr, const array_typet &array_type) const {
-  switch (expr.decl().decl_kind()) {
-    case Z3_OP_CONST_ARRAY:
-    {
-      const exprt &what = convert_z3_expr(expr.arg(0),array_type.subtype());
-      return array_of_exprt(what, array_type);
-    }
-    case Z3_OP_STORE:
-    {
-      const exprt &array = convert_z3_array(expr.arg(0), array_type);
-      const exprt &index = convert_z3_expr(expr.arg(1), array_type.size().type());
-      const exprt &value = convert_z3_expr(expr.arg(2), array_type.subtype());
-      return with_exprt(array, index, value);
-    }
+exprt z3_convt::convert_z3_array(const z3::expr &expr, const array_typet &array_type) const 
+{
+  switch(expr.kind())
+  {
+    case Z3_QUANTIFIER_AST:
+      if (expr.is_lambda())
+      {
+        std::cout << expr << std::endl;
+        z3::as_array(expr)
+      }
+    case Z3_APP_AST:
+      switch (expr.decl().decl_kind())
+      {
+        case Z3_OP_CONST_ARRAY:
+        {
+          const exprt &what = convert_z3_expr(expr.arg(0),array_type.subtype());
+          return array_of_exprt(what, array_type);
+        }
+        case Z3_OP_STORE:
+        {
+          const exprt &array = convert_z3_array(expr.arg(0), array_type);
+          const exprt &index = convert_z3_expr(expr.arg(1), array_type.size().type());
+          const exprt &value = convert_z3_expr(expr.arg(2), array_type.subtype());
+          return with_exprt(array, index, value);
+        }
+        default:
+          UNEXPECTEDCASE("Not implemented yet\n");
+      }
     default:
-      UNEXPECTEDCASE("Not an array\n");
+      UNEXPECTEDCASE("Not implemented yet\n");
   }
 }
 

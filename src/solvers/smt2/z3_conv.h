@@ -41,8 +41,8 @@ public:
   resultt dec_solve() {
     // out << "CHECK-SAT" << std::endl;;
     auto result = solver.check();
-    // model = solver.get_model();
-    // out << "MODEL : " << solver.get_model() << std::endl;
+    auto model = solver.get_model();
+    std::cout << "MODEL : " << solver.get_model() << std::endl;
     switch(result) {
     case z3::unsat:   return D_UNSATISFIABLE;
     case z3::sat:     return D_SATISFIABLE;
@@ -109,6 +109,7 @@ protected:
   // void convert_byte_update(const byte_update_exprt &expr);
   // void convert_byte_extract(const byte_extract_exprt &expr);
   z3::expr convert_typecast(const typecast_exprt &expr) const;
+  z3::expr convert_array(const array_exprt &expr) const;
   // void convert_floatbv_typecast(const floatbv_typecast_exprt &expr);
   // void convert_struct(const struct_exprt &expr);
   // void convert_union(const union_exprt &expr);
