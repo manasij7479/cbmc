@@ -13,8 +13,14 @@ Author: Manasij Mukherjee, manasij7479@gmail.com
 #include <set>
 
 #include <util/hash_cont.h>
+#include <util/arith_tools.h>
+#include <util/expr_util.h>
+#include <util/std_types.h>
 #include <util/std_expr.h>
 #include <util/byte_operators.h>
+#include <ansi-c/string_constant.h>
+
+#include <langapi/language_util.h>
 
 #include <solvers/prop/prop_conv.h>
 #include <solvers/flattening/boolbv_width.h>
@@ -33,16 +39,20 @@ public:
     const namespacet &_ns):
     prop_convt(_ns),
     solver(context),
+    // model(context),
     store(context),
+    lit_store(context),
     out("/tmp/test"),
-    ns(_ns) {}
+    ns(_ns),
+    no_boolean_variables(0) {}
 
-  virtual ~z3_convt() { }
+  virtual ~z3_convt() {}
   resultt dec_solve() {
     // out << "CHECK-SAT" << std::endl;;
+    // std::cout << solver.to_smt2() << std::endl;
     auto result = solver.check();
-    auto model = solver.get_model();
-    std::cout << "MODEL : " << solver.get_model() << std::endl;
+    // auto model = solver.get_model();
+    // std::cout << "MODEL : " << solver.get_model() << std::endl;
     switch(result) {
     case z3::unsat:   return D_UNSATISFIABLE;
     case z3::sat:     return D_SATISFIABLE;
@@ -51,32 +61,27 @@ public:
   }
 
   // overloading interfaces
-  virtual literalt convert(const exprt &expr) {
-    // out << "convert : " <<from_expr(ns, " ", expr) << "\n";
-    throw 1;
-  }
+  virtual literalt convert(const exprt &expr);
+
   virtual void set_frozen(literalt a) { /* not needed */ }
-  virtual void set_to(const exprt &expr, bool value) {
-    // out << "set to : " <<from_expr(ns, " ", expr) << " : " << value << "\n";
-    z3::expr result = convert_expr(expr);
-    if (value) {
-      solver.add(result);
-      out << "(assert " << result << " )\n`";
-    } else {
-      solver.add(!result);
-    }
+  virtual void set_to(const exprt &expr, bool value) override
+  {
+    // std::cout << "set to : " << from_expr(expr) << " : " << value << "\n";
+    if (value)
+      solver.add(convert_expr(expr));
+    else
+      solver.add(!convert_expr(expr));
   }
-  virtual exprt get(const exprt &expr) const;
-  virtual std::string decision_procedure_text() const { return "Z3/CPP-API"; }
+
+  exprt get(const exprt &expr) const;
+  std::string decision_procedure_text() const { return "Z3/CPP-API"; }
   virtual void print_assignment(std::ostream &out) const {}
-  virtual tvt l_get(literalt l) const {
-    throw 2;
-  }
+  virtual tvt l_get(literalt l) const;
   virtual void set_assumptions(const bvt &bv) { assumptions=bv; throw 3;}
 
   // new stuff
   z3::expr convert_expr(const exprt &) const ;
-  // z3::expr convert_literal(const literalt);
+  z3::expr convert_literal(const literalt) const;
 
   void new_context() {
     solver.push();
@@ -88,7 +93,7 @@ public:
 protected:
   mutable z3::context context;
   z3::solver solver;
-  // z3::model model = solver.get_model();
+  // z3::model model;
 
   bool exists(const irep_idt &id) const {
     return map.find(id) != map.end();
@@ -98,10 +103,15 @@ protected:
   }
   mutable std::unordered_map<irep_idt, int, irep_id_hash> map;
   mutable z3::expr_vector store;
+  mutable std::unordered_map<std::string, int> lit_map;
+  mutable z3::expr_vector lit_store;
 
   bvt assumptions;
   mutable std::ofstream out;
   const namespacet &ns;
+  
+  unsigned no_boolean_variables;
+  // std::vector<bool> boolean_assignment;
 
   z3::sort convert_type(const typet &type) const;
 
@@ -110,6 +120,7 @@ protected:
   // void convert_byte_extract(const byte_extract_exprt &expr);
   z3::expr convert_typecast(const typecast_exprt &expr) const;
   z3::expr convert_array(const array_exprt &expr) const;
+  z3::expr convert_array_of(const array_of_exprt &expr) const;
   // void convert_floatbv_typecast(const floatbv_typecast_exprt &expr);
   // void convert_struct(const struct_exprt &expr);
   // void convert_union(const union_exprt &expr);
